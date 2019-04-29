@@ -76,6 +76,16 @@ sudo bash -c 'cat >> /etc/sysctl.conf <<EOF
 vm.max_map_count=262144
 EOF'
 
+## CAPES Reverse Proxy ##
+
+# Nginx Reverse Proxy
+sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy -p 80:80 -p 443:443 -v /etc/nginx/certs -v /etc/nginx/vhost.d -v /usr/share/nginx/html -v /var/run/docker.sock:/tmp/docker.sock:ro jwilder/nginx-proxy
+
+#Let's encrypt nginx-proxy companion
+sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy-letsencrypt --volumes-from nginx-proxy -v /var/run/docker.sock:/var/run/docker.sock:ro jrcs/letsencrypt-nginx-proxy-companion
+
+
+
 ## CAPES Databases ##
 
 # Etherpad MYSQL Container
@@ -91,13 +101,6 @@ sudo docker run -d --network capes --restart unless-stopped --name capes-thehive
 sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat-mongo -v /var/lib/docker/volumes/rocketchat/_data:/data/db:z -v /var/lib/docker/volumes/rocketchat/dump/_data:/dump:z mongo:latest mongod --smallfiles
 
 
-## CAPES Reverse Proxy ##
-
-# Nginx Reverse Proxy
-sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy -p 80:80 -p 443:443 -v /etc/nginx/certs -v /etc/nginx/vhost.d -v /usr/share/nginx/html -v /var/run/docker.sock:/tmp/docker.sock:ro jwilder/nginx-proxy
-
-#Let's encrypt nginx-proxy companion
-sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy-letsencrypt --volumes-from nginx-proxy -v /var/run/docker.sock:/var/run/docker.sock:ro jrcs/letsencrypt-nginx-proxy-companion
 
 
 ## CAPES Services ##
@@ -118,13 +121,13 @@ sudo docker run -d --network capes --restart unless-stopped --name capes-gitea -
 sudo docker run -d --network capes --restart unless-stopped --name capes-etherpad -e "LETSENCRYPT_HOST=etherpad.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9001" -e "VIRTUAL_HOST=etherpad.$HOSTNAME"  -e "ETHERPAD_TITLE=CAPES" -e "ETHERPAD_PORT=9001" -e ETHERPAD_ADMIN_PASSWORD=$etherpad_admin_passphrase -e "ETHERPAD_ADMIN_USER=admin" -e "ETHERPAD_DB_TYPE=mysql" -e "ETHERPAD_DB_HOST=capes-etherpad-mysql" -e "ETHERPAD_DB_USER=etherpad" -e ETHERPAD_DB_PASSWORD=$etherpad_mysql_passphrase -e "ETHERPAD_DB_NAME=etherpad" tvelocity/etherpad-lite:latest
 
 # TheHive Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-thehive -e "LETSENCRYPT_HOST=thehive.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=thehive.$HOSTNAME"  -e CORTEX_URL=capes-cortex -p 9000:9000 thehiveproject/thehive:latest --es-hostname capes-thehive-elasticsearch --cortex-hostname capes-cortex
+sudo docker run -d --network capes --restart unless-stopped --name capes-thehive -e "LETSENCRYPT_HOST=thehive.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=thehive.$HOSTNAME"  -e CORTEX_URL=capes-cortex thehiveproject/thehive:latest --es-hostname capes-thehive-elasticsearch --cortex-hostname capes-cortex
 
 # Cortex Service
 # sudo docker run -d --network capes --restart unless-stopped --name capes-cortex -e "LETSENCRYPT_HOST=cortex.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=cortex.$HOSTNAME"  thehiveproject/cortex:latest --es-hostname capes-thehive-elasticsearch
 
 # Rocketchat Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat -e "LETSENCRYPT_HOST=rocketchat.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=rocketchat.$HOSTNAME"   -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e ROOT_URL=http://rocketchat.$HOSTNAME --link capes-rocketchat-mongo  rocketchat/rocket.chat:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat -e "LETSENCRYPT_HOST=rocketchat.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=rocketchat.$HOSTNAME" -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e "ROOT_URL=http://rocketchat.$HOSTNAME" --link capes-rocketchat-mongo  rocketchat/rocket.chat:latest
 
 # Mumble Service
 sudo docker run -d --network capes --restart unless-stopped --name capes-mumble -p 64738:64738 -p 64738:64738/udp -v /var/lib/docker/volumes/mumble-data/_data:/data:z -e SUPW=$mumble_passphrase extra/mumble:latest
@@ -139,7 +142,7 @@ sudo docker run -d --network capes --restart unless-stopped --name capes-elastic
 sudo docker run -d --network capes --restart unless-stopped --name capes-elasticsearch-3 -v /var/lib/docker/volumes/elasticsearch-3/capes/_data:/usr/share/elasticsearch/data:z --ulimit memlock=-1:-1 -e "cluster.name=capes" -e "node.name=capes-elasticsearch-3" -e "cluster.initial_master_nodes=capes-elasticsearch-1" -e "bootstrap.memory_lock=true" -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" -e "discovery.seed_hosts=capes-elasticsearch-1,capes-elasticsearch-2" docker.elastic.co/elasticsearch/elasticsearch:7.0.0
 
 # CAPES Kibana
-sudo docker run -d --network capes --restart unless-stopped --name capes-kibana -e "LETSENCRYPT_HOST=kibana.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=5601" -e "VIRTUAL_HOST=kibana.$HOSTNAME" --network capes -p 5601:5601 --link capes-elasticsearch-1:elasticsearch docker.elastic.co/kibana/kibana:7.0.0
+sudo docker run -d --network capes --restart unless-stopped --name capes-kibana -e "LETSENCRYPT_HOST=kibana.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=5601" -e "VIRTUAL_HOST=kibana.$HOSTNAME" --network capes --link capes-elasticsearch-1:elasticsearch docker.elastic.co/kibana/kibana:7.0.0
 
 # CAPES Heartbeat
 sudo docker run -d --network capes --restart unless-stopped --name capes-heartbeat --network capes --user=heartbeat -v $(pwd)/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml:z docker.elastic.co/beats/heartbeat:7.0.0 -e -E output.elasticsearch.hosts=["capes-elasticsearch-1:9200"]
