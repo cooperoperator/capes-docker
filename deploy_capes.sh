@@ -18,7 +18,7 @@ sleep 1
 root_passphrase=$(date +%s | sha256sum | base64 | head -c 32)
 
 # Set root passphrase
-sudo echo "root:$root_passphrase" | chpasswd
+# sudo echo "root:$root_passphrase" | chpasswd
 
 # Write the passphrases to a file for reference. You should store this securely in accordance with your local security policy.
 # As much as it pains me to admit it, @dcode helped me with the USER_HOME variable to get the creds written to the unprivileged user's home directory
