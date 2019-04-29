@@ -20,14 +20,14 @@ mumble_passphrase=$(date +%s | sha256sum | base64 | head -c 32)
 USER_HOME=$(getent passwd 1000 | cut -d':' -f6)
 for i in {etherpad_user_passphrase,etherpad_mysql_passphrase,etherpad_admin_passphrase,gitea_mysql_passphrase,mumble_passphrase}; do echo "$i = ${!i}"; done > $USER_HOME/capes_credentials.txt
 
-# Set your IP address as a variable. This is for instructions below.
-IP="$(hostname -I | sed -e 's/[[:space:]]*$//')"
+# Set your hostname as a variable. This is for instructions below.
+HOSTNAME="$(hostname -f)"
 
 # Update your Host file
-echo "$IP $HOSTNAME" | sudo tee -a /etc/hosts
+# echo "$IP $HOSTNAME" | sudo tee -a /etc/hosts
 
 # Update the landing page index file
-sed -i "s/host-ip/$IP/" landing_page/index.html
+sed -i "s/HOSTNAME/$HOSTNAME/" landing_page/index.html
 
 ################################
 ########### Docker #############
@@ -82,31 +82,41 @@ sudo docker run -d --network capes --restart unless-stopped --name capes-thehive
 # Rocketchat MongoDB Container
 sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat-mongo -v /var/lib/docker/volumes/rocketchat/_data:/data/db:z -v /var/lib/docker/volumes/rocketchat/dump/_data:/dump:z mongo:latest mongod --smallfiles
 
+
+## CAPES Reverse Proxy ##
+
+# Nginx Reverse Proxy
+sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy -p 80:80 -p 443:443 -v /etc/nginx/certs -v /etc/nginx/vhost.d -v /usr/share/nginx/html -v /var/run/docker.sock:/tmp/docker.sock:ro jwilder/nginx-proxy
+
+#Let's encrypt nginx-proxy companion
+sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy-letsencrypt --volumes-from nginx-proxy -v /var/run/docker.sock:/var/run/docker.sock:ro jrcs/letsencrypt-nginx-proxy-companion
+
+
 ## CAPES Services ##
 
 # Portainer Service
 sudo docker run -d --network capes --restart unless-stopped --name capes-portainer -v /var/lib/docker/volumes/portainer/_data:/data:z -v /var/run/docker.sock:/var/run/docker.sock -p 2000:9000 portainer/portainer:latest
 
 # Nginx Service
-sudo docker run -d  --network capes --restart unless-stopped --name capes-landing-page -v $(pwd)/landing_page:/usr/share/nginx/html:z -p 80:80 nginx:latest
+sudo docker run -d  --network capes --restart unless-stopped --name capes-landing-page -e "VIRTUAL_PORT=80" -e "VIRTUAL_HOST=landing-page.$HOSTNAME" -v $(pwd)/landing_page:/usr/share/nginx/html:z -p 8080:80 nginx:latest
 
 # Cyberchef Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-cyberchef -p 8000:8080 remnux/cyberchef:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-cyberchef -e "VIRTUAL_PORT=8080" -e "VIRTUAL_HOST=cyberchef.$HOSTNAME" -p 8000:8080 remnux/cyberchef:latest
 
 # Gitea Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-gitea -v /var/lib/docker/volumes/gitea/_data:/data:z -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=capes-gitea" -p 2222:22 -p 3000:3000 gitea/gitea:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-gitea -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=gitea.$HOSTNAME" -v /var/lib/docker/volumes/gitea/_data:/data:z -p 2222:22 -p 3000:3000 gitea/gitea:latest
 
 # Etherpad Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-etherpad -e "ETHERPAD_TITLE=CAPES" -e "ETHERPAD_PORT=9001" -e ETHERPAD_ADMIN_PASSWORD=$etherpad_admin_passphrase -e "ETHERPAD_ADMIN_USER=admin" -e "ETHERPAD_DB_TYPE=mysql" -e "ETHERPAD_DB_HOST=capes-etherpad-mysql" -e "ETHERPAD_DB_USER=etherpad" -e ETHERPAD_DB_PASSWORD=$etherpad_mysql_passphrase -e "ETHERPAD_DB_NAME=etherpad" -p 5000:9001 tvelocity/etherpad-lite:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-etherpad -e "VIRTUAL_PORT=9001" -e "VIRTUAL_HOST=etherpad.$HOSTNAME"  -e "ETHERPAD_TITLE=CAPES" -e "ETHERPAD_PORT=9001" -e ETHERPAD_ADMIN_PASSWORD=$etherpad_admin_passphrase -e "ETHERPAD_ADMIN_USER=admin" -e "ETHERPAD_DB_TYPE=mysql" -e "ETHERPAD_DB_HOST=capes-etherpad-mysql" -e "ETHERPAD_DB_USER=etherpad" -e ETHERPAD_DB_PASSWORD=$etherpad_mysql_passphrase -e "ETHERPAD_DB_NAME=etherpad" -p 5000:9001 tvelocity/etherpad-lite:latest
 
 # TheHive Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-thehive -e CORTEX_URL=capes-cortex -p 9000:9000 thehiveproject/thehive:latest --es-hostname capes-thehive-elasticsearch --cortex-hostname capes-cortex
+sudo docker run -d --network capes --restart unless-stopped --name capes-thehive -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=thehive.$HOSTNAME"  -e CORTEX_URL=capes-cortex -p 9000:9000 thehiveproject/thehive:latest --es-hostname capes-thehive-elasticsearch --cortex-hostname capes-cortex
 
 # Cortex Service
-# sudo docker run -d --network capes --restart unless-stopped --name capes-cortex -p 9001:9000 thehiveproject/cortex:latest --es-hostname capes-thehive-elasticsearch
+# sudo docker run -d --network capes --restart unless-stopped --name capes-cortex -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=cortex.$HOSTNAME"  -p 9001:9000 thehiveproject/cortex:latest --es-hostname capes-thehive-elasticsearch
 
 # Rocketchat Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat --link capes-rocketchat-mongo -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e ROOT_URL=http://$IP:4000 -p 4000:3000 rocketchat/rocket.chat:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=rocketchat.$HOSTNAME"   -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e ROOT_URL=https://rocketchat.$HOSTNAME --link capes-rocketchat-mongo  -p 4000:3000 rocketchat/rocket.chat:latest
 
 # Mumble Service
 sudo docker run -d --network capes --restart unless-stopped --name capes-mumble -p 64738:64738 -p 64738:64738/udp -v /var/lib/docker/volumes/mumble-data/_data:/data:z -e SUPW=$mumble_passphrase extra/mumble:latest
