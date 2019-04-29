@@ -106,7 +106,7 @@ sudo docker run -d --network capes --restart unless-stopped --name capes-rocketc
 ## CAPES Services ##
 
 # Portainer Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-portainer "LETSENCRYPT_HOST=portainer.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=portainer.$HOSTNAME" -v /var/lib/docker/volumes/portainer/_data:/data:z -v /var/run/docker.sock:/var/run/docker.sock portainer/portainer:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-portainer -e "LETSENCRYPT_HOST=portainer.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=portainer.$HOSTNAME" -v /var/lib/docker/volumes/portainer/_data:/data:z -v /var/run/docker.sock:/var/run/docker.sock portainer/portainer:latest
 
 # Nginx Service
 sudo docker run -d  --network capes --restart unless-stopped --name capes-landing-page -e "LETSENCRYPT_HOST=$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=80" -e "VIRTUAL_HOST=$HOSTNAME" -v $(pwd)/landing_page:/usr/share/nginx/html:z nginx:latest
