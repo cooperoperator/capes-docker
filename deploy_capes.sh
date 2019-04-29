@@ -14,14 +14,22 @@ sleep 1
 gitea_mysql_passphrase=$(date +%s | sha256sum | base64 | head -c 32)
 sleep 1
 mumble_passphrase=$(date +%s | sha256sum | base64 | head -c 32)
+sleep 1
+root_passphrase=$(date +%s | sha256sum | base64 | head -c 32)
+
+# Set root passphrase
+sudo echo "root:$root_passphrase" | chpasswd
 
 # Write the passphrases to a file for reference. You should store this securely in accordance with your local security policy.
 # As much as it pains me to admit it, @dcode helped me with the USER_HOME variable to get the creds written to the unprivileged user's home directory
 USER_HOME=$(getent passwd 1000 | cut -d':' -f6)
-for i in {etherpad_user_passphrase,etherpad_mysql_passphrase,etherpad_admin_passphrase,gitea_mysql_passphrase,mumble_passphrase}; do echo "$i = ${!i}"; done > $USER_HOME/capes_credentials.txt
+for i in {etherpad_user_passphrase,etherpad_mysql_passphrase,etherpad_admin_passphrase,gitea_mysql_passphrase,mumble_passphrase, root_passphrase}; do echo "$i = ${!i}"; done > $USER_HOME/capes_credentials.txt
 
 # Set your hostname as a variable. This is for instructions below.
 HOSTNAME="$(hostname -f)"
+
+# Set your email address for Let's Enrypt. Hard-coded for now.
+EMAIL="ca@tactics.coop"
 
 # Update your Host file
 # echo "$IP $HOSTNAME" | sudo tee -a /etc/hosts
@@ -95,28 +103,28 @@ sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy-l
 ## CAPES Services ##
 
 # Portainer Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-portainer -v /var/lib/docker/volumes/portainer/_data:/data:z -v /var/run/docker.sock:/var/run/docker.sock -p 2000:9000 portainer/portainer:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-portainer "LETSENCRYPT_HOST=portainer.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=portainer.$HOSTNAME" -v /var/lib/docker/volumes/portainer/_data:/data:z -v /var/run/docker.sock:/var/run/docker.sock portainer/portainer:latest
 
 # Nginx Service
-sudo docker run -d  --network capes --restart unless-stopped --name capes-landing-page -e "LETSENCRYPT_HOST=landing-page.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=80" -e "VIRTUAL_HOST=landing-page.$HOSTNAME" -v $(pwd)/landing_page:/usr/share/nginx/html:z -p 8080:80 nginx:latest
+sudo docker run -d  --network capes --restart unless-stopped --name capes-landing-page -e "LETSENCRYPT_HOST=$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=80" -e "VIRTUAL_HOST=landing-page.$HOSTNAME" -v $(pwd)/landing_page:/usr/share/nginx/html:z nginx:latest
 
 # Cyberchef Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-cyberchef -e "LETSENCRYPT_HOST=cyberchef.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=8080" -e "VIRTUAL_HOST=cyberchef.$HOSTNAME" -p 8000:8080 remnux/cyberchef:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-cyberchef -e "LETSENCRYPT_HOST=cyberchef.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=8080" -e "VIRTUAL_HOST=cyberchef.$HOSTNAME" -p remnux/cyberchef:latest
 
 # Gitea Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-gitea -e "LETSENCRYPT_HOST=gitea.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=gitea.$HOSTNAME" -v /var/lib/docker/volumes/gitea/_data:/data:z -p 2222:22 -p 3000:3000 gitea/gitea:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-gitea -e "LETSENCRYPT_HOST=gitea.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=gitea.$HOSTNAME" -v /var/lib/docker/volumes/gitea/_data:/data:z gitea/gitea:latest
 
 # Etherpad Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-etherpad -e "LETSENCRYPT_HOST=etherpad.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=9001" -e "VIRTUAL_HOST=etherpad.$HOSTNAME"  -e "ETHERPAD_TITLE=CAPES" -e "ETHERPAD_PORT=9001" -e ETHERPAD_ADMIN_PASSWORD=$etherpad_admin_passphrase -e "ETHERPAD_ADMIN_USER=admin" -e "ETHERPAD_DB_TYPE=mysql" -e "ETHERPAD_DB_HOST=capes-etherpad-mysql" -e "ETHERPAD_DB_USER=etherpad" -e ETHERPAD_DB_PASSWORD=$etherpad_mysql_passphrase -e "ETHERPAD_DB_NAME=etherpad" -p 5000:9001 tvelocity/etherpad-lite:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-etherpad -e "LETSENCRYPT_HOST=etherpad.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9001" -e "VIRTUAL_HOST=etherpad.$HOSTNAME"  -e "ETHERPAD_TITLE=CAPES" -e "ETHERPAD_PORT=9001" -e ETHERPAD_ADMIN_PASSWORD=$etherpad_admin_passphrase -e "ETHERPAD_ADMIN_USER=admin" -e "ETHERPAD_DB_TYPE=mysql" -e "ETHERPAD_DB_HOST=capes-etherpad-mysql" -e "ETHERPAD_DB_USER=etherpad" -e ETHERPAD_DB_PASSWORD=$etherpad_mysql_passphrase -e "ETHERPAD_DB_NAME=etherpad" tvelocity/etherpad-lite:latest
 
 # TheHive Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-thehive -e "LETSENCRYPT_HOST=thehive.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=thehive.$HOSTNAME"  -e CORTEX_URL=capes-cortex -p 9000:9000 thehiveproject/thehive:latest --es-hostname capes-thehive-elasticsearch --cortex-hostname capes-cortex
+sudo docker run -d --network capes --restart unless-stopped --name capes-thehive -e "LETSENCRYPT_HOST=thehive.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=thehive.$HOSTNAME"  -e CORTEX_URL=capes-cortex -p 9000:9000 thehiveproject/thehive:latest --es-hostname capes-thehive-elasticsearch --cortex-hostname capes-cortex
 
 # Cortex Service
-# sudo docker run -d --network capes --restart unless-stopped --name capes-cortex -e "LETSENCRYPT_HOST=cortex.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=cortex.$HOSTNAME"  -p 9001:9000 thehiveproject/cortex:latest --es-hostname capes-thehive-elasticsearch
+# sudo docker run -d --network capes --restart unless-stopped --name capes-cortex -e "LETSENCRYPT_HOST=cortex.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=cortex.$HOSTNAME"  thehiveproject/cortex:latest --es-hostname capes-thehive-elasticsearch
 
 # Rocketchat Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat -e "LETSENCRYPT_HOST=rocketchat.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=rocketchat.$HOSTNAME"   -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e ROOT_URL=https://rocketchat.$HOSTNAME --link capes-rocketchat-mongo  -p 4000:3000 rocketchat/rocket.chat:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat -e "LETSENCRYPT_HOST=rocketchat.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=rocketchat.$HOSTNAME"   -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e ROOT_URL=https://rocketchat.$HOSTNAME --link capes-rocketchat-mongo  rocketchat/rocket.chat:latest
 
 # Mumble Service
 sudo docker run -d --network capes --restart unless-stopped --name capes-mumble -p 64738:64738 -p 64738:64738/udp -v /var/lib/docker/volumes/mumble-data/_data:/data:z -e SUPW=$mumble_passphrase extra/mumble:latest
@@ -131,7 +139,7 @@ sudo docker run -d --network capes --restart unless-stopped --name capes-elastic
 sudo docker run -d --network capes --restart unless-stopped --name capes-elasticsearch-3 -v /var/lib/docker/volumes/elasticsearch-3/capes/_data:/usr/share/elasticsearch/data:z --ulimit memlock=-1:-1 -e "cluster.name=capes" -e "node.name=capes-elasticsearch-3" -e "cluster.initial_master_nodes=capes-elasticsearch-1" -e "bootstrap.memory_lock=true" -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" -e "discovery.seed_hosts=capes-elasticsearch-1,capes-elasticsearch-2" docker.elastic.co/elasticsearch/elasticsearch:7.0.0
 
 # CAPES Kibana
-sudo docker run -d --network capes --restart unless-stopped --name capes-kibana -e "LETSENCRYPT_HOST=kibana.$HOSTNAME" -e "LETSENCRYPT_EMAIL=admin@$HOSTNAME" -e "VIRTUAL_PORT=5601" -e "VIRTUAL_HOST=kibana.$HOSTNAME" --network capes -p 5601:5601 --link capes-elasticsearch-1:elasticsearch docker.elastic.co/kibana/kibana:7.0.0
+sudo docker run -d --network capes --restart unless-stopped --name capes-kibana -e "LETSENCRYPT_HOST=kibana.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=5601" -e "VIRTUAL_HOST=kibana.$HOSTNAME" --network capes -p 5601:5601 --link capes-elasticsearch-1:elasticsearch docker.elastic.co/kibana/kibana:7.0.0
 
 # CAPES Heartbeat
 sudo docker run -d --network capes --restart unless-stopped --name capes-heartbeat --network capes --user=heartbeat -v $(pwd)/heartbeat.yml:/usr/share/heartbeat/heartbeat.yml:z docker.elastic.co/beats/heartbeat:7.0.0 -e -E output.elasticsearch.hosts=["capes-elasticsearch-1:9200"]
@@ -175,7 +183,7 @@ curl -X PUT "localhost:9200/_cluster/settings" -H 'Content-Type: application/jso
 # Port 8000 - Cyberchef
 # Port 9000 - TheHive
 # Port 9001 - Cortex (TheHive Analyzer Plugin)
-sudo firewall-cmd --add-port=80/tcp --add-port=443/tcp --add-port=8080/tcp --add-port=3000/tcp --add-port=4000/tcp --add-port=5000/tcp --add-port=5601/tcp --add-port=64738/tcp --add-port=64738/udp --add-port=8000/tcp --add-port=9000/tcp --add-port=9001/tcp --permanent
+sudo firewall-cmd --add-port=80/tcp --add-port=443/tcp --add-port 64738/udp --add-port 64738/tcp --permanent
 sudo firewall-cmd --reload
 
 ################################
@@ -183,4 +191,4 @@ sudo firewall-cmd --reload
 ################################
 clear
 echo "Please see the "Build, Operate, Maintain" documentation for the post-installation steps."
-echo "The CAPES landing page has been successfully deployed. Browse to http://$HOSTNAME (or http://$IP if you don't have DNS set up) to begin using the services."
+echo "The CAPES landing page has been successfully deployed. Browse to http://$HOSTNAME to begin using the services."
