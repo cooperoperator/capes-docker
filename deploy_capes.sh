@@ -106,10 +106,10 @@ sudo docker run -d --network capes --restart unless-stopped --name nginx-proxy-l
 sudo docker run -d --network capes --restart unless-stopped --name capes-portainer "LETSENCRYPT_HOST=portainer.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=portainer.$HOSTNAME" -v /var/lib/docker/volumes/portainer/_data:/data:z -v /var/run/docker.sock:/var/run/docker.sock portainer/portainer:latest
 
 # Nginx Service
-sudo docker run -d  --network capes --restart unless-stopped --name capes-landing-page -e "LETSENCRYPT_HOST=$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=80" -e "VIRTUAL_HOST=landing-page.$HOSTNAME" -v $(pwd)/landing_page:/usr/share/nginx/html:z nginx:latest
+sudo docker run -d  --network capes --restart unless-stopped --name capes-landing-page -e "LETSENCRYPT_HOST=$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=80" -e "VIRTUAL_HOST=$HOSTNAME" -v $(pwd)/landing_page:/usr/share/nginx/html:z nginx:latest
 
 # Cyberchef Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-cyberchef -e "LETSENCRYPT_HOST=cyberchef.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=8080" -e "VIRTUAL_HOST=cyberchef.$HOSTNAME" -p remnux/cyberchef:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-cyberchef -e "LETSENCRYPT_HOST=cyberchef.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=80" -e "VIRTUAL_HOST=cyberchef.$HOSTNAME" remnux/cyberchef:latest
 
 # Gitea Service
 sudo docker run -d --network capes --restart unless-stopped --name capes-gitea -e "LETSENCRYPT_HOST=gitea.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=gitea.$HOSTNAME" -v /var/lib/docker/volumes/gitea/_data:/data:z gitea/gitea:latest
@@ -124,7 +124,7 @@ sudo docker run -d --network capes --restart unless-stopped --name capes-thehive
 # sudo docker run -d --network capes --restart unless-stopped --name capes-cortex -e "LETSENCRYPT_HOST=cortex.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=9000" -e "VIRTUAL_HOST=cortex.$HOSTNAME"  thehiveproject/cortex:latest --es-hostname capes-thehive-elasticsearch
 
 # Rocketchat Service
-sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat -e "LETSENCRYPT_HOST=rocketchat.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=rocketchat.$HOSTNAME"   -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e ROOT_URL=https://rocketchat.$HOSTNAME --link capes-rocketchat-mongo  rocketchat/rocket.chat:latest
+sudo docker run -d --network capes --restart unless-stopped --name capes-rocketchat -e "LETSENCRYPT_HOST=rocketchat.$HOSTNAME" -e "LETSENCRYPT_EMAIL=$EMAIL" -e "VIRTUAL_PORT=3000" -e "VIRTUAL_HOST=rocketchat.$HOSTNAME"   -e "MONGO_URL=mongodb://capes-rocketchat-mongo:27017/rocketchat" -e ROOT_URL=http://rocketchat.$HOSTNAME --link capes-rocketchat-mongo  rocketchat/rocket.chat:latest
 
 # Mumble Service
 sudo docker run -d --network capes --restart unless-stopped --name capes-mumble -p 64738:64738 -p 64738:64738/udp -v /var/lib/docker/volumes/mumble-data/_data:/data:z -e SUPW=$mumble_passphrase extra/mumble:latest
