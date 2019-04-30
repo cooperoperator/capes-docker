@@ -189,6 +189,9 @@ curl -X PUT "localhost:9200/_cluster/settings" -H 'Content-Type: application/jso
 # Port 8000 - Cyberchef
 # Port 9000 - TheHive
 # Port 9001 - Cortex (TheHive Analyzer Plugin)
+sudo yum install -y firewalld
+sudo systemctl enable firewalld
+sudo systemctl start firewalld
 sudo firewall-cmd --add-port=80/tcp --add-port=443/tcp --add-port 64738/udp --add-port 64738/tcp --permanent
 sudo firewall-cmd --reload
 
